@@ -4,11 +4,120 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ClipMaker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js">
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+      
+      * {
+        font-family: 'Inter', sans-serif;
+      }
+
+      body {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        min-height: 100vh;
+      }
+
+      .glassmorphism {
+        background: rgba(15, 23, 42, 0.7);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(148, 163, 184, 0.1);
+      }
+
+      .soft-shadow {
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      }
+
+      .micro-hover {
+        transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .micro-hover:hover {
+        transform: scale(1.02);
+      }
+
+      .gradient-text {
+        background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .input-focus:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      }
+
+      .status-text {
+        min-height: 24px;
+        font-size: 0.875rem;
+      }
+
+      .video-container {
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+        border-radius: 12px;
+      }
+    </style>
   </head>
   <body>
-    <h1>ClipMaker</h1>
+    <!-- Header -->
+    <header class="sticky top-0 z-50 glassmorphism backdrop-blur-md border-b border-slate-700/50">
+      <div class="max-w-4xl mx-auto px-6 py-6 flex items-center justify-center">
+        <h1 class="text-3xl font-bold tracking-tight">
+          <span class="gradient-text">ClipMaker</span>
+        </h1>
+      </div>
+    </header>
 
-    <button id="upload_widget" class="cloudinary-button">Upload files</button>
+    <!-- Main Content -->
+    <main class="max-w-2xl mx-auto px-6 py-24">
+      <!-- API Key Section -->
+      <div class="mb-32">
+        <label for="apiKey" class="block text-sm font-semibold text-slate-300 mb-3 tracking-tight">
+          Chave de API Gemini
+        </label>
+        <input
+          id="apiKey"
+          type="password"
+          placeholder="Cole sua chave de API do Google Gemini"
+          class="input-focus micro-hover w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 soft-shadow"
+        />
+        <p class="text-xs text-slate-500 mt-2">Sua chave é armazenada apenas localmente no seu navegador.</p>
+      </div>
+
+      <!-- Upload Section -->
+      <div class="mb-32">
+        <button 
+          id="uploadWidget" 
+          class="micro-hover w-full py-4 px-6 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold rounded-lg soft-shadow transition-all duration-300"
+        >
+          <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+          </svg>
+          Fazer Upload do Vídeo
+        </button>
+        <p id="status" class="status-text text-sm text-slate-400 mt-4 text-center"></p>
+      </div>
+
+      <!-- Video Result Section -->
+      <div class="video-section">
+        <div class="mb-4">
+          <h2 class="text-lg font-semibold text-slate-200 tracking-tight">Seu Clipe Viral</h2>
+          <p class="text-sm text-slate-500 mt-1">A IA selecionará o momento mais viral do seu vídeo</p>
+        </div>
+        <div class="video-container glassmorphism soft-shadow overflow-hidden">
+          <video 
+            id="video" 
+            src="" 
+            controls
+            class="w-full h-full bg-black"
+          ></video>
+        </div>
+      </div>
+    </main>
 
     <script
       src="https://upload-widget.cloudinary.com/latest/global/all.js"
@@ -16,6 +125,26 @@
     ></script>
 
     <script type="text/javascript">
+      const el = {
+        status: document.getElementById("status"),
+        video: document.getElementById("video"),
+        apiKey: document.getElementById("apiKey"),
+        button: document.getElementById("uploadWidget"),
+        setStatus: function(text, type = 'info') {
+          this.status.textContent = text
+          this.status.className = `status-text text-sm mt-4 text-center ${
+            type === 'success' ? 'text-green-400' :
+            type === 'error' ? 'text-red-400' :
+            'text-slate-400'
+          }`
+          gsap.fromTo(
+            this.status,
+            { opacity: 0, y: 10 },
+            { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }
+          )
+        }
+      }
+
       const app = {
         transcriptionURL: "",
         public_id: "",
@@ -27,11 +156,13 @@
             const url = `https://res.cloudinary.com/${config.cloudName}/raw/upload/v${Date.now()}/${app.public_id}.transcript`
 
             try {
+              el.setStatus(`⏳ Processando... (${attempt}/30)`, 'info')
               console.log(`Tentativa ${attempt}/${maxAttempts}: Verificando...`)
               const response = await fetch(url)
 
               if (response.ok) {
                 app.transcriptionURL = url
+                el.setStatus("✅ Transcrição encontrada! Analisando conteúdo...", 'success')
                 console.log("Transcrição encontrada:", url)
                 return true
               }
@@ -45,6 +176,7 @@
             }
           }
 
+          el.setStatus("❌ Erro: Transcrição não encontrada", 'error')
           console.log("Transcrição não encontrada após 30 tentativas.")
           return false
         },
@@ -52,24 +184,24 @@
           const response = await fetch(app.transcriptionURL)
           return response.text()
         },
-        getViralMomentes: async () => {
+        getViralMoments: async () => {
           const transcription = await app.getTranscription()
           const model = "gemini-3-flash-preview"
           const endpointGemini = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
 
           const prompt = `
-            You are a professional video editor specializing in viral content.
-            Task: Analyze the transcription below and identify the most engaging, funny, or surprising segment.
-            Constraints:
-            1. Duration: Minimum 30 seconds, Maximum 60 seconds.
-            2. Format: Return ONLY the start and end string for Cloudinary. Format: so_<start_seconds>,eo_<end_seconds>
-            3. Examples: "so_10,eo_20" or "so_12.5,eo_45.2"
-            4. CRITICAL: Do not use markdown, do not use quotes, do not explain. Return ONLY the raw string.
+              You are a professional video editor specializing in viral content.
+              Task: Analyze the transcription below and identify the most engaging, funny, or surprising segment.
+              Constraints:
+              1. Duration: Minimum 30 seconds, Maximum 60 seconds.
+              2. Format: Return ONLY the start and end string for Cloudinary. Format: so_<start_seconds>,eo_<end_seconds>
+              3. Examples: "so_10,eo_20" or "so_12.5,eo_45.2"
+              4. CRITICAL: Do not use markdown, do not use quotes, do not explain. Return ONLY the raw string.
 
-            Transcription: ${transcription}`
+              Transcription: ${transcription}`
 
           const headers = {
-            "x-goog-api-key": "",
+            "x-goog-api-key": el.apiKey.value,
             "content-Type": "application/json",
           }
 
@@ -83,16 +215,38 @@
             },
           ]
 
-          const response = await fetch(endpointGemini, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              contents,
-            }),
-          })
+          const maxAttempts = 3
+          const delay = 1500
 
-          const data = await response.json()
-          console.log({ data })
+          for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+              const response = await fetch(endpointGemini, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                  contents,
+                }),
+              })
+
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`)
+              }
+
+              const data = await response.json()
+              const rawText = data.candidates[0].content.parts[0].text
+              return rawText.replace(/```/g, "").replace(/json/g, "").trim()
+            } catch (error) {
+              const isLastAttempt = attempt === maxAttempts
+              console.log(
+                `Gemini falhou (tentativa ${attempt}/${maxAttempts}):`,
+                error.message,
+              )
+              if (isLastAttempt) {
+                throw error
+              }
+              await new Promise((resolve) => setTimeout(resolve, delay))
+            }
+          }
         },
       }
 
@@ -107,6 +261,7 @@
           if (!error && result && result.event === "success") {
             console.log("Done! Here is the image info: ", result.info)
             app.public_id = result.info.public_id
+            el.setStatus("🎬 Vídeo enviado! Gerando seu clipe viral...", 'info')
 
             try {
               const isReady = await app.waitForTranscription()
@@ -115,21 +270,78 @@
                 throw new Error("Erro ao buscar transcrição")
               }
 
-              const viralMoments = await app.getViralMomentes()
+              el.setStatus("🤖 IA analisando melhor momento viral...", 'info')
+              const viralMoments = await app.getViralMoments()
+              el.setStatus("✨ Seu clipe viral está pronto!", 'success')
+              
+              const viralMomentsURL = `https://res.cloudinary.com/${config.cloudName}/video/upload/${viralMoments}/${app.public_id}.mp4`
+              el.video.setAttribute("src", viralMomentsURL)
+              
+              gsap.fromTo(
+                document.querySelector('.video-container'),
+                { opacity: 0, scale: 0.95 },
+                { opacity: 1, scale: 1, duration: 0.6, ease: "power3.out" }
+              )
             } catch (error) {
+              el.setStatus("❌ Erro ao processar vídeo. Tente novamente.", 'error')
               console.log(error)
             }
           }
         },
       )
 
-      document.getElementById("upload_widget").addEventListener(
-        "click",
-        function () {
-          myWidget.open()
-        },
-        false,
-      )
+      el.button.addEventListener("click", () => {
+        if(!el.apiKey.value) {
+          alert("Por favor, insira sua chave de API do Gemini antes de fazer upload.")
+          el.apiKey.focus()
+          return
+        }
+        myWidget.open()
+      }, false)
+
+      // Animações GSAP
+      gsap.from("header", {
+        duration: 0.8,
+        y: -50,
+        opacity: 0,
+        ease: "power3.out"
+      })
+
+      gsap.from(".max-w-2xl > div", {
+        duration: 0.8,
+        y: 30,
+        opacity: 0,
+        stagger: 0.2,
+        ease: "power3.out",
+        delay: 0.2
+      })
+
+      // Animação do status (já integrada em setStatus)
+      
+      // Animação do vídeo ao aparecer
+      const videoObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting && el.video.src) {
+            gsap.fromTo(
+              entry.target,
+              { opacity: 0, scale: 0.95 },
+              { opacity: 1, scale: 1, duration: 0.6, ease: "power3.out" }
+            )
+            videoObserver.unobserve(entry.target)
+          }
+        })
+      })
+
+      videoObserver.observe(document.querySelector('.video-container'))
+
+      // Melhorias de UX no input
+      el.apiKey.addEventListener('focus', () => {
+        gsap.to(el.apiKey, { duration: 0.3, boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.2)' })
+      })
+
+      el.apiKey.addEventListener('blur', () => {
+        gsap.to(el.apiKey, { duration: 0.3, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.3)' })
+      })
     </script>
   </body>
 </html>
